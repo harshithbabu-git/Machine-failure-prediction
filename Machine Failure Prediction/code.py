@@ -1,7 +1,7 @@
 # Import necessary libraries
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc, precision_recall_curve
@@ -42,20 +42,34 @@ numerical_features = X.columns  # Use all columns for scaling
 X_train[numerical_features] = scaler.fit_transform(X_train[numerical_features])
 X_test[numerical_features] = scaler.transform(X_test[numerical_features])
 
-# Initialize and train the Random Forest Classifier
-model = RandomForestClassifier(random_state=42)
-model.fit(X_train, y_train)
+# Perform hyperparameter tuning with GridSearchCV
+param_grid = {
+    'n_estimators': [100, 200, 300],         # Number of trees
+    'max_depth': [10, 20, 30, None],        # Maximum depth of each tree
+    'min_samples_split': [2, 5, 10],        # Minimum samples to split a node
+    'min_samples_leaf': [1, 2, 4],          # Minimum samples at each leaf
+    'max_features': ['sqrt', 'log2', None], # Features considered for splits
+}
+print("Performing hyperparameter tuning...")
+grid_search = GridSearchCV(RandomForestClassifier(random_state=42), param_grid, cv=3, n_jobs=-1, verbose=2)
+grid_search.fit(X_train, y_train)
 
-# Make predictions
+# Best hyperparameters
+print(f"Best Hyperparameters: {grid_search.best_params_}")
+
+# Train the model using the best hyperparameters
+model = grid_search.best_estimator_
+
+# Evaluate the tuned model
 y_pred = model.predict(X_test)
+y_pred_prob = model.predict_proba(X_test)[:, 1]
 
-# Evaluate the model
 print("Confusion Matrix:")
 print(confusion_matrix(y_test, y_pred))
 print("\nClassification Report:")
 print(classification_report(y_test, y_pred))
 
-# Feature Importance
+# Feature Importance Plot
 importances = model.feature_importances_
 indices = np.argsort(importances)[::-1]
 features = X.columns
@@ -81,7 +95,6 @@ plt.savefig("confusion_matrix_heatmap.png")  # Save the plot
 plt.close()
 
 # ROC Curve
-y_pred_prob = model.predict_proba(X_test)[:, 1]
 fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
 roc_auc = auc(fpr, tpr)
 
